@@ -4,7 +4,7 @@ import { AttributeDirective } from "../vdom/attribute_directive";
 import { OpNode, Op, ElementData, ContextData, Key, EventsData } from "../vdom/operations";
 import { ComponentDescriptor, StatelessComponentDescriptor } from "../vdom/component";
 import { ElementProtoDescriptor } from "../vdom/element_proto";
-import { createStateNode } from "../vdom/state";
+import { createStateNode, OpState } from "../vdom/state";
 import { setContext, restoreContext, disableContext, enableContext } from "../vdom/context";
 import { escapeAttributeValue, escapeText } from "./escape";
 
@@ -199,4 +199,113 @@ export function renderToString(op: Op): string {
       disableContext();
     }
   }
+}
+
+export function serializeSSR(opState: OpState): string {
+  try {
+    /* istanbul ignore else */
+    if (process.env.NODE_ENV !== "production") {
+      enableContext();
+    }
+    return _serializeSSR(opState);
+  } catch (e) {
+    restoreContext(EMPTY_OBJECT);
+    _attributes = "";
+    _styles = "";
+    _children = "";
+    throw e;
+  } finally {
+    /* istanbul ignore else */
+    if (process.env.NODE_ENV !== "production") {
+      disableContext();
+    }
+  }
+}
+
+function _serializeSSR(opState: OpState | null): string {
+  if (opState !== null) {
+    const flags = opState.f;
+    if ((flags & NodeFlags.Text) !== 0) {
+      const op = opState.o as string | number;
+      if (typeof op === "string") {
+        return escapeText(op);
+      }
+      // number
+      return op.toString();
+    } else if ((flags & NodeFlags.Element) !== 0) {
+      const op = opState.o as OpNode;
+      const data = op.d;
+      let children = "";
+
+      let tagName;
+      let className = data.n;
+      let attrs = data.a;
+      if ((op.t.f & NodeFlags.ElementProto) !== 0) {
+        const proto = (op.t.d as ElementProtoDescriptor).p;
+        const protoData = proto.d;
+        tagName = proto.t.d;
+        if (className === void 0) {
+          className = protoData.n;
+        }
+        if (protoData.a !== void 0) {
+          attrs = attrs === void 0 ? protoData.a : { ...protoData.a, ...attrs };
+        }
+      } else {
+        tagName = op.t.d;
+      }
+
+      let openElement = `<${tagName}`;
+      if (className !== void 0 && className !== "") {
+        openElement += ` class="${className}"`;
+      }
+      if (attrs !== void 0) {
+        for (const key in attrs) {
+          const value = attrs[key];
+          if (key === "style") {
+            for (const skey in value) {
+              emitStyle(`${skey}:${escapeAttributeValue(value[skey])}`);
+            }
+          } else {
+            if (typeof value === "object") {
+              (value as AttributeDirective<any>).s!(key, (value as AttributeDirective<any>).v);
+            } else if (typeof value !== "boolean") {
+              emitAttribute(`${key}="${escapeAttributeValue(value)}"`);
+            } else if (value === true) {
+              emitAttribute(key);
+            }
+          }
+        }
+        if (_styles !== "") {
+          emitAttribute(`style="${_styles}"`);
+          _styles = "";
+        }
+        openElement += _attributes;
+        children = _children;
+        _attributes = "";
+        _children = "";
+      }
+
+      if (children === "") {
+        children = renderToString((op as OpNode<ElementData>).d.c);
+      }
+      if ((flags & NodeFlags.NewlineEatingElement) !== 0) {
+        if (children.length > 0 && children.charCodeAt(0) === 10) { // "\n"
+          children = `\n${children}`;
+        }
+      }
+      return ((flags & (NodeFlags.VoidElement | NodeFlags.Svg)) !== 0 && children === "") ?
+        `${openElement} />` :
+        `${openElement}>${children}</${tagName}>`;
+    } else if ((flags & (NodeFlags.Fragment | NodeFlags.TrackByKey)) !== 0) {
+      let result = "";
+      const children = opState.c;
+      for (let i = 0; i < (children as OpState[]).length; ++i) {
+        result += _serializeSSR((children as OpState[])[i]);
+      }
+      return result;
+    }
+    // Component | Context | Events
+    return _serializeSSR(opState.c as OpState | null);
+  }
+  return "";
 }
