@@ -19,6 +19,10 @@ export interface ComponentHooks<P = any> {
    * Unmount hooks.
    */
   u: null | ((unmount?: boolean) => void) | ((unmount?: boolean) => void)[];
+  /**
+   * Invalidate hook.
+   */
+  i?: () => void;
 }
 
 /**

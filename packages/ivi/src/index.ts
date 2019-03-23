@@ -159,6 +159,5 @@ export {
 export { containsRelatedTarget } from "./helpers/events";
 
 // Experimental SSR diff/patch
-export { setInvalidateHandler } from "./scheduler";
-export { RootSSR, renderSSR, updateSSR, dirtyCheckSSR } from "./ssr/diff";
+export { RootSSR, setInvalidateHandler, renderSSR, updateSSR, dirtyCheckSSR } from "./ssr/diff";
 export { serializeSSR } from "./ssr/render";

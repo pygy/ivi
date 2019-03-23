@@ -10,6 +10,12 @@ import { NodeFlags } from "../vdom/node_flags";
 import { ComponentHooks, ComponentDescriptor, StatelessComponentDescriptor } from "../vdom/component";
 import { setContext, restoreContext, context } from "../vdom/context";
 
+let ssrInvalidateHandler: () => void;
+
+export function setInvalidateHandler(h: () => void) {
+  ssrInvalidateHandler = h;
+}
+
 export interface RootSSR {
   state: OpState | null;
 }
@@ -114,7 +120,7 @@ function _renderObject(opState: OpState, op: OpNode): void {
   if ((flags & NodeFlags.Component) !== 0) {
     deepStateFlags = _pushDeepState();
     if ((flags & NodeFlags.Stateful) !== 0) {
-      opState.s = prevState = { r: null, s: null, u: null } as ComponentHooks;
+      opState.s = prevState = { r: null, s: null, u: null, i: ssrInvalidateHandler } as ComponentHooks;
       // Reusing value variable.
       (prevState as ComponentHooks).r = value = (op.t.d as ComponentDescriptor).c(opState);
     } else {

@@ -7,15 +7,6 @@ import { Op } from "../vdom/operations";
 import { Component } from "../vdom/component";
 import { ROOTS, findRoot, dirtyCheck } from "../vdom/root";
 
-let ssrInvalidateHandler: (c: Component) => void;
-
-export function setInvalidateHandler(h: (c: Component) => void) {
-  if (process.env.IVI_TARGET !== "ssr") {
-    throw Error("setInvalidateHandler is working in SSR mode only");
-  }
-  ssrInvalidateHandler = h;
-}
-
 /**
  * Update flags.
  */
@@ -303,7 +294,7 @@ export function requestDirtyCheck(flags?: UpdateFlags): void {
 export function invalidate(c: Component, flags?: UpdateFlags): void {
   c.f |= NodeFlags.Dirty;
   if (process.env.IVI_TARGET === "ssr") {
-    ssrInvalidateHandler(c);
+    c.s.i!();
   } else {
     requestDirtyCheck(flags);
   }
